@@ -3,7 +3,8 @@ var fs = require('fs'),
 	express = require('express'),
 	youtube = express.Router(),
 	youtubeNode = require('youtube-node'),
-	youtubedl = require('youtube-dl');
+	moment = require('moment'),
+	ytdl = require('ytdl');
 
 youtubeNode.setKey('AIzaSyCnTj3cw6mHYmEayJXExrMwbZ2xhhrDeIA');
 
@@ -22,31 +23,38 @@ youtube.get('/search/:searchString', function(req, res, next) {
 
 youtube.get('/download/:video_id', function(req, res, next){
 	var videoId = req.params.video_id;
-	var video = youtubedl(
-		'http://www.youtube.com/watch?v=' + videoId,
-		['--max-quality=18'],
-		{}
+	var url = 'http://www.youtube.com/watch?v=' + videoId;
+	var fileName = moment().unix() + '_' + videoId + '.mp4';
+	var outPath = path.join(__dirname, '../files', fileName);
+
+	var video = ytdl(
+		url,
+		{
+			quality: 'highest',
+			filter: function(format) {
+				//console.log('format', format);
+				return format.container === 'mp4';
+			}
+		}
 	);
 
-	video.on('info', function(info) {
-		console.log(info, 'Video Info');
-		var outPath = path.join(__dirname, '../files', videoId + '.mp4');
+	video.on('info', function(info){
+		console.log('info', info);
 
 		if(fs.existsSync(outPath)){
 			res.json(200, {
-				video: 'http://localhost:3000/ytvideo/' + videoId + '.mp4'
+				video: 'http://localhost:3000/ytvideo/' + fileName
 			});
-
 			return;
 		}
 
 		video.pipe(fs.createWriteStream(outPath));
-		video.on('end', function(){
-			console.log('file saved', outPath);
-			res.json(200, {
-				video: 'http://localhost:3000/ytvideo/' + videoId + '.mp4',
-				thumb: info.thumbnail
-			});
+	});
+
+	video.on('end', function(){
+		console.log('file saved', outPath);
+		res.json(200, {
+			video: 'http://localhost:3000/ytvideo/' + fileName
 		});
 	});
 });
